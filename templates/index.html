@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lung Cancer Prediction</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 5px solid #4f46e5;
+            width: 50px;
+            height: 50px;
+            animation: spin 1.5s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .result-card {
+            transition: all 0.3s ease-in-out;
+            transform: translateY(20px);
+            opacity: 0;
+        }
+        .result-card.visible {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="bg-white rounded-2xl shadow-2xl p-8 sm:p-12 max-w-3xl w-full mx-4 my-8">
+        <!-- Header Section -->
+        <div class="text-center mb-10">
+            <h1 class="text-4xl sm:text-5xl font-bold text-gray-800 tracking-tight">AI Lung Cancer Classifier</h1>
+            <p class="text-gray-500 mt-3 text-lg">Upload a lung tissue image to get an instant classification.</p>
+        </div>
+
+        <!-- File Upload Section -->
+        <div class="border-2 border-dashed border-gray-300 rounded-xl p-6 sm:p-10 text-center cursor-pointer transition-all duration-300 hover:border-indigo-500 hover:bg-indigo-50" id="drop-zone">
+            <input type="file" id="file-input" class="hidden" accept="image/png, image/jpeg, image/gif">
+            <div id="upload-prompt">
+                <svg class="mx-auto h-16 w-16 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3.75 3.75M12 9.75l3.75 3.75M3 17.25V6.75A2.25 2.25 0 015.25 4.5h13.5A2.25 2.25 0 0121 6.75v10.5A2.25 2.25 0 0118.75 21H5.25A2.25 2.25 0 013 17.25z" />
+                </svg>
+                <p class="mt-4 text-lg text-gray-600">
+                    <span class="font-semibold text-indigo-600">Click to upload</span> or drag and drop
+                </p>
+                <p class="text-sm text-gray-500 mt-1">PNG, JPG, or GIF</p>
+            </div>
+            <div id="image-preview-container" class="hidden relative">
+                <img id="image-preview" class="max-h-52 mx-auto rounded-lg shadow-md" alt="Image preview">
+                <button id="remove-image-btn" class="absolute -top-2 -right-2 bg-white rounded-full p-1 shadow-lg text-gray-600 hover:text-red-500 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Predict Button -->
+        <div class="mt-8 text-center">
+            <button id="predict-button" class="bg-indigo-600 text-white font-bold text-lg py-3 px-12 rounded-full hover:bg-indigo-700 transition-all duration-300 transform hover:scale-105 shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed disabled:scale-100" disabled>
+                Classify Image
+            </button>
+        </div>
+
+        <!-- Result Section -->
+        <div id="result-container" class="mt-10 hidden">
+             <div id="loader" class="loader mx-auto hidden"></div>
+            <div id="result-card" class="result-card bg-gray-50 rounded-xl p-6 sm:p-8 border-4">
+                <h2 class="text-2xl font-semibold text-gray-800 text-center">Classification Result</h2>
+                <div class="mt-6 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8">
+                    <div class="text-center">
+                        <p class="text-lg text-gray-600">Prediction</p>
+                        <p class="text-3xl font-bold" id="prediction-label"></p>
+                    </div>
+                    <div class="w-px h-12 bg-gray-200 hidden sm:block"></div>
+                    <div class="text-center">
+                        <p class="text-lg text-gray-600">Confidence</p>
+                        <p class="text-3xl font-bold text-gray-700" id="confidence-label"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+         <div id="error-container" class="mt-6 text-center hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative" role="alert">
+            <strong class="font-bold">Error:</strong>
+            <span class="block sm:inline" id="error-message"></span>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const predictButton = document.getElementById('predict-button');
+        const imagePreview = document.getElementById('image-preview');
+        const imagePreviewContainer = document.getElementById('image-preview-container');
+        const removeImageBtn = document.getElementById('remove-image-btn');
+        const uploadPrompt = document.getElementById('upload-prompt');
+        const resultContainer = document.getElementById('result-container');
+        const predictionLabel = document.getElementById('prediction-label');
+        const confidenceLabel = document.getElementById('confidence-label');
+        const loader = document.getElementById('loader');
+        const resultCard = document.getElementById('result-card');
+        const errorContainer = document.getElementById('error-container');
+        const errorMessage = document.getElementById('error-message');
+
+        let selectedFile = null;
+
+        // --- Event Listeners ---
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('border-indigo-500', 'bg-indigo-50');
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('border-indigo-500', 'bg-indigo-50');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-indigo-500', 'bg-indigo-50');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+        predictButton.addEventListener('click', handlePrediction);
+        removeImageBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent dropZone click event
+            resetUI();
+        });
+
+
+        function resetUI() {
+            selectedFile = null;
+            fileInput.value = ''; // Clear the file input
+            imagePreview.src = '';
+            imagePreviewContainer.classList.add('hidden');
+            uploadPrompt.classList.remove('hidden');
+            predictButton.disabled = true;
+            resultContainer.classList.add('hidden');
+            errorContainer.classList.add('hidden');
+            resultCard.classList.remove('visible');
+        }
+
+        // --- Functions ---
+        function handleFile(file) {
+            if (file && file.type.startsWith('image/')) {
+                selectedFile = file;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    imagePreview.src = e.target.result;
+                    imagePreviewContainer.classList.remove('hidden');
+                    uploadPrompt.classList.add('hidden');
+                    predictButton.disabled = false;
+                    resultContainer.classList.add('hidden');
+                    errorContainer.classList.add('hidden');
+                    resultCard.classList.remove('visible');
+                };
+                reader.readAsDataURL(file);
+            } else {
+                showError("Please select a valid image file (PNG, JPG).");
+            }
+        }
+
+        async function handlePrediction() {
+            if (!selectedFile) {
+                showError("Please select a file first.");
+                return;
+            }
+
+            // Show loader and hide previous results
+            loader.classList.remove('hidden');
+            resultContainer.classList.remove('hidden');
+            resultCard.classList.remove('visible');
+            errorContainer.classList.add('hidden');
+            predictButton.disabled = true;
+
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Set text content
+                    predictionLabel.textContent = result.prediction;
+                    confidenceLabel.textContent = result.confidence;
+
+                    // Reset classes before applying new ones
+                    predictionLabel.className = 'text-3xl font-bold';
+                    resultCard.className = 'result-card bg-gray-50 rounded-xl p-6 sm:p-8 border-4';
+
+                    // Apply colors based on prediction
+                    const predictionText = result.prediction.toLowerCase();
+                    if (predictionText.includes('normal')) {
+                        predictionLabel.classList.add('text-green-600');
+                        resultCard.classList.add('border-green-300');
+                    } else if (predictionText.includes('adenocarcinoma')) {
+                        predictionLabel.classList.add('text-red-600');
+                        resultCard.classList.add('border-red-300');
+                    } else if (predictionText.includes('large cell carcinoma')) {
+                        predictionLabel.classList.add('text-orange-500');
+                        resultCard.classList.add('border-orange-300');
+                    } else if (predictionText.includes('squamous cell carcinoma')) {
+                        predictionLabel.classList.add('text-purple-600');
+                        resultCard.classList.add('border-purple-300');
+                    } else {
+                        predictionLabel.classList.add('text-gray-700');
+                        resultCard.classList.add('border-gray-300');
+                    }
+
+                    // Add a small delay for a smoother transition
+                    setTimeout(() => {
+                        resultCard.classList.add('visible');
+                    }, 100);
+                } else {
+                    showError(result.error || 'An unknown error occurred.');
+                }
+
+            } catch (error) {
+                showError('Failed to connect to the server. Please try again.');
+            } finally {
+                // Hide loader
+                loader.classList.add('hidden');
+                predictButton.disabled = false;
+            }
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorContainer.classList.remove('hidden');
+            resultContainer.classList.add('hidden');
+        }
+    </script>
+
+</body>
+</html>
