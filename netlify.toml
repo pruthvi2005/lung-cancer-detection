@@ -1,11 +1,11 @@
 [build]
-  publish = "."
-  command = "echo 'Build complete'"
+  publish = "./"
+  command = "pip install -r requirements.txt"
 
 [build.environment]
   PYTHON_VERSION = "3.9"
 
 [[redirects]]
   from = "/*"
-  to = "/index.html"
+  to = "/"
   status = 200
