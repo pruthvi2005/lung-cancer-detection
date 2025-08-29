@@ -15,6 +15,15 @@ CLASS_INDICES_PATH = 'class_indices.json'
 
 # Load the model
 try:
+    # Check if model file exists locally, if not download from GitHub releases
+    import os
+    if not os.path.exists(MODEL_PATH):
+        print("* Model not found locally, downloading from GitHub...")
+        import urllib.request
+        model_url = "https://github.com/pruthvi2005/lung-cancer-detection/releases/download/v1.0/lung_cancer_model.h5"
+        urllib.request.urlretrieve(model_url, MODEL_PATH)
+        print("* Model downloaded successfully")
+    
     model = load_model(MODEL_PATH)
     print("* Model loaded successfully")
 except Exception as e:
